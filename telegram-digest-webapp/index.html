@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Дайджест чатов</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f7f7f4;
+      --panel: #ffffff;
+      --text: #1d2329;
+      --muted: #69727d;
+      --border: #d8ddd8;
+      --accent: #1f7a5a;
+      --danger: #9d2f3f;
+      --shadow: 0 12px 32px rgba(20, 35, 30, 0.08);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111715;
+        --panel: #18201d;
+        --text: #edf3ef;
+        --muted: #a1aaa5;
+        --border: #303b36;
+        --accent: #6fd0a4;
+        --danger: #ff8a9a;
+        --shadow: none;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.45;
+    }
+    main {
+      width: min(980px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 24px 0 32px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 18px;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(26px, 4vw, 42px);
+      line-height: 1.05;
+      font-weight: 760;
+      letter-spacing: 0;
+    }
+    p { margin: 8px 0 0; color: var(--muted); max-width: 640px; }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 16px;
+    }
+    .toolbar {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 10px;
+      align-items: end;
+      margin-bottom: 14px;
+    }
+    label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+    }
+    input, select, button, textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--panel);
+      color: var(--text);
+      font: inherit;
+      min-height: 40px;
+      padding: 8px 10px;
+    }
+    button {
+      width: auto;
+      min-width: 128px;
+      border-color: transparent;
+      background: var(--accent);
+      color: #fff;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    button.secondary {
+      background: transparent;
+      color: var(--text);
+      border-color: var(--border);
+    }
+    button.danger {
+      background: transparent;
+      color: var(--danger);
+      border-color: var(--border);
+      min-width: 88px;
+    }
+    .grid {
+      display: grid;
+      gap: 10px;
+    }
+    .row {
+      display: grid;
+      grid-template-columns: minmax(180px, 1.2fr) minmax(130px, .7fr) minmax(100px, .55fr) minmax(110px, .7fr) 92px 82px 90px;
+      gap: 8px;
+      align-items: end;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--panel), var(--bg) 35%);
+    }
+    .empty {
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      padding: 28px;
+      text-align: center;
+      color: var(--muted);
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 14px;
+      flex-wrap: wrap;
+    }
+    textarea {
+      min-height: 140px;
+      margin-top: 14px;
+      font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+      display: none;
+    }
+    @media (max-width: 820px) {
+      header, .toolbar, .row { grid-template-columns: 1fr; display: grid; }
+      button { width: 100%; }
+      .actions { justify-content: stretch; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <h1>Дайджест чатов</h1>
+        <p>Выбери источники, глубину истории и подробность выжимки. Страница статическая: она отправляет настройки в бота через Telegram WebApp или показывает JSON для проверки.</p>
+      </div>
+    </header>
+
+    <section class="panel">
+      <div class="toolbar">
+        <label>
+          ID или username чата
+          <input id="chatKey" placeholder="-1001234567890 или @channel">
+        </label>
+        <label>
+          Название
+          <input id="chatTitle" placeholder="Название источника">
+        </label>
+        <button id="addManual" type="button">Добавить</button>
+      </div>
+      <button id="requestChat" class="secondary" type="button">Выбрать чат средствами Telegram</button>
+      <div id="list" class="grid" aria-live="polite"></div>
+      <div class="actions">
+        <button id="clear" class="danger" type="button">Очистить</button>
+        <button id="send" type="button">Отправить настройки боту</button>
+      </div>
+      <textarea id="output" readonly></textarea>
+    </section>
+  </main>
+
+  <template id="rowTemplate">
+    <div class="row">
+      <label>Источник<input data-field="title"></label>
+      <label>Глубина
+        <select data-field="lookback_mode">
+          <option value="unread">Только новые</option>
+          <option value="days">За период</option>
+          <option value="year">1 год</option>
+          <option value="all">Вся история</option>
+        </select>
+      </label>
+      <label>Дней<input data-field="lookback_days" type="number" min="1" max="3650" value="30"></label>
+      <label>Подробность
+        <select data-field="detail_level">
+          <option value="brief">Кратко</option>
+          <option value="normal">Обычно</option>
+          <option value="detailed">Подробно</option>
+        </select>
+      </label>
+      <label>Лимит<input data-field="max_messages" type="number" min="1" max="500000" value="2000"></label>
+      <label>Медиа<input data-field="include_media" type="checkbox"></label>
+      <button class="danger" data-action="remove" type="button">Удалить</button>
+    </div>
+  </template>
+
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script>
+    const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+    const list = document.querySelector("#list");
+    const output = document.querySelector("#output");
+    const storageKey = "telegramDigestSources";
+    let sources = JSON.parse(localStorage.getItem(storageKey) || "[]");
+
+    if (tg) {
+      tg.ready();
+      tg.expand();
+      tg.MainButton.setText("Отправить настройки");
+      tg.MainButton.onClick(sendPayload);
+      tg.MainButton.show();
+      if (tg.onEvent) {
+        tg.onEvent("chatRequested", event => {
+          const chat = event && (event.chat || event);
+          if (chat && (chat.id || chat.chat_id)) addSource(String(chat.id || chat.chat_id), chat.title || chat.username || "Выбранный чат");
+        });
+      }
+    }
+
+    function persist() {
+      localStorage.setItem(storageKey, JSON.stringify(sources));
+    }
+
+    function addSource(chatKey, title) {
+      if (!chatKey) return;
+      const existing = sources.find(item => item.chat_key === chatKey);
+      if (existing) {
+        existing.title = title || existing.title;
+      } else {
+        sources.push({
+          chat_key: chatKey,
+          title: title || chatKey,
+          enabled: true,
+          lookback_mode: "year",
+          lookback_days: 365,
+          detail_level: "detailed",
+          max_messages: 50000,
+          include_media: false
+        });
+      }
+      persist();
+      render();
+    }
+
+    function render() {
+      list.innerHTML = "";
+      if (!sources.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "Источники еще не выбраны.";
+        list.append(empty);
+        return;
+      }
+      const tpl = document.querySelector("#rowTemplate");
+      sources.forEach((source, index) => {
+        const node = tpl.content.firstElementChild.cloneNode(true);
+        node.querySelectorAll("[data-field]").forEach(control => {
+          const field = control.dataset.field;
+          if (control.type === "checkbox") {
+            control.checked = Boolean(source[field]);
+          } else {
+            control.value = source[field] ?? "";
+          }
+          control.addEventListener("input", () => {
+            source[field] = control.type === "checkbox"
+              ? control.checked
+              : control.type === "number"
+                ? Number(control.value || 0)
+                : control.value;
+            persist();
+          });
+        });
+        node.querySelector("[data-action='remove']").addEventListener("click", () => {
+          sources.splice(index, 1);
+          persist();
+          render();
+        });
+        list.append(node);
+      });
+    }
+
+    function buildPayload() {
+      return {
+        action: "apply_sources",
+        sources: sources.map(item => ({
+          chat_key: String(item.chat_key),
+          title: item.title || String(item.chat_key),
+          enabled: true,
+          lookback_mode: item.lookback_mode || "unread",
+          lookback_days: Number(item.lookback_days || 0) || null,
+          detail_level: item.detail_level || "normal",
+          max_messages: Number(item.max_messages || 0) || null,
+          include_media: Boolean(item.include_media)
+        }))
+      };
+    }
+
+    function sendPayload() {
+      const text = JSON.stringify(buildPayload());
+      if (tg && tg.sendData) {
+        tg.sendData(text);
+      } else {
+        output.style.display = "block";
+        output.value = JSON.stringify(buildPayload(), null, 2);
+      }
+    }
+
+    document.querySelector("#addManual").addEventListener("click", () => {
+      addSource(document.querySelector("#chatKey").value.trim(), document.querySelector("#chatTitle").value.trim());
+      document.querySelector("#chatKey").value = "";
+      document.querySelector("#chatTitle").value = "";
+    });
+
+    document.querySelector("#requestChat").addEventListener("click", () => {
+      if (!tg || !tg.requestChat) {
+        output.style.display = "block";
+        output.value = "Этот клиент Telegram не поддерживает requestChat. Добавь ID или @username вручную.";
+        return;
+      }
+      try {
+        const result = tg.requestChat({ request_id: Date.now(), bot_is_member: false });
+        if (result && typeof result.then === "function") {
+          result.then(chat => {
+            if (chat) addSource(String(chat.id || chat.chat_id), chat.title || chat.username || "Выбранный чат");
+          }).catch(error => {
+            output.style.display = "block";
+            output.value = String(error);
+          });
+        }
+      } catch (error) {
+        output.style.display = "block";
+        output.value = String(error);
+      }
+    });
+
+    document.querySelector("#send").addEventListener("click", sendPayload);
+    document.querySelector("#clear").addEventListener("click", () => {
+      sources = [];
+      persist();
+      render();
+    });
+
+    render();
+  </script>
+</body>
+</html>
